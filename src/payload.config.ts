@@ -16,12 +16,23 @@ const dirname = path.dirname(filename)
 export default buildConfig({
   admin: {
     user: Users.slug,
+    components: {
+      graphics: {
+        Icon: '/components/AdminIcon',
+        Logo: '/components/AdminLogo',
+      },
+    },
     importMap: {
       baseDir: path.resolve(dirname),
+    },
+    meta: {
+      titleSuffix: ' - Apollonie',
     },
   },
   cors: [
     process.env.FRONTEND_URL || 'http://localhost:5173',
+    'https://apollonie.ca',
+    'https://www.apollonie.ca',
     'http://127.0.0.1:5173',
     'http://localhost:4173',
     'http://127.0.0.1:4173',
