@@ -19,12 +19,17 @@ type MediaResponse = {
   totalDocs: number
 }
 
+type CategoryResponse = {
+  docs: { name: string }[]
+}
+
 type ViewMode = 'gallery' | 'list'
 
 const PAGE_SIZE = 48
 
 export const MediaOrganizer = () => {
   const [category, setCategory] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isWorking, setIsWorking] = useState(false)
@@ -57,13 +62,28 @@ export const MediaOrganizer = () => {
     void loadMedia()
   }, [loadMedia])
 
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await fetch('/api/categories?depth=0&limit=100&sort=name', {
+          credentials: 'same-origin',
+        })
+
+        if (!response.ok) return
+
+        const result = (await response.json()) as CategoryResponse
+        setCategoryOptions(result.docs.map((item) => item.name))
+      } catch {
+        // Category suggestions are optional; assigning a category still works.
+      }
+    }
+
+    void loadCategories()
+  }, [])
+
   const selectedCount = selectedIDs.size
   const selectedLabel = `${selectedCount} image${selectedCount === 1 ? '' : 's'} selected`
-  const categories = useMemo(
-    () => Array.from(new Set(media?.docs.map((item) => item.category).filter((item): item is string => Boolean(item))))
-      .sort((a, b) => a.localeCompare(b)),
-    [media?.docs],
-  )
+  const categories = useMemo(() => [...categoryOptions].sort((a, b) => a.localeCompare(b)), [categoryOptions])
 
   const toggleSelection = (id: MediaDocument['id']) => {
     const key = String(id)
@@ -109,6 +129,11 @@ export const MediaOrganizer = () => {
 
       if (responses.some((response) => !response.ok)) {
         throw new Error('Some selected images could not be updated. Please try again.')
+      }
+
+      if (action === 'category') {
+        const assignedCategory = category.trim()
+        setCategoryOptions((current) => Array.from(new Set([...current, assignedCategory])))
       }
 
       setCategory('')
@@ -177,10 +202,11 @@ export const MediaOrganizer = () => {
             value={category}
           />
           <datalist id="media-organizer-categories">
-            {categories.map((existingCategory) => (
+            {categories.map((existingCategory: string) => (
               <option key={existingCategory} value={existingCategory} />
             ))}
           </datalist>
+          <a href="/admin/collections/categories">Manage categories</a>
           <Button buttonStyle="primary" disabled={isWorking} onClick={() => void runBulkAction('category')} size="small" type="button">
             Add to category
           </Button>

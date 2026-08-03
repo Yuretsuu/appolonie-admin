@@ -45,7 +45,38 @@ export const Media: CollectionConfig = {
   hooks: {
     beforeChange: [
       async ({ data, operation, req }) => {
-        if (operation !== 'create' || !req.file?.data) return data
+        const category = typeof data?.category === 'string' ? data.category.trim() : ''
+
+        if (category) {
+          const existingCategory = await req.payload.find({
+            collection: 'categories',
+            depth: 0,
+            limit: 1,
+            overrideAccess: false,
+            req,
+            where: {
+              name: {
+                equals: category,
+              },
+            },
+          })
+
+          if (!existingCategory.totalDocs) {
+            await req.payload.create({
+              collection: 'categories',
+              data: { name: category },
+              overrideAccess: false,
+              req,
+            })
+          }
+        }
+
+        const normalizedData = {
+          ...data,
+          ...(typeof data?.category === 'string' ? { category } : {}),
+        }
+
+        if (operation !== 'create' || !req.file?.data) return normalizedData
 
         const checksum = createHash('sha256').update(req.file.data).digest('hex')
         const existing = await req.payload.find({
@@ -74,7 +105,7 @@ export const Media: CollectionConfig = {
         }
 
         return {
-          ...data,
+          ...normalizedData,
           checksum,
         }
       },

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
 import { Users } from './collections/Users'
+import { Categories } from './collections/Categories'
 import { Media } from './collections/Media'
 import { Galleries } from './collections/Galleries'
 import { removeDuplicateMedia } from './endpoints/removeDuplicateMedia'
@@ -43,7 +44,7 @@ export default buildConfig({
     'http://localhost:4173',
     'http://127.0.0.1:4173',
   ],
-  collections: [Users, Media, Galleries],
+  collections: [Users, Categories, Media, Galleries],
   editor: lexicalEditor(),
   endpoints: [removeDuplicateMedia],
   secret: process.env.PAYLOAD_SECRET || '',
