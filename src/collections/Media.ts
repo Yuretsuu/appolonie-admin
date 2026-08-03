@@ -5,7 +5,10 @@ export const Media: CollectionConfig = {
   slug: 'media',
   admin: {
     components: {
-      beforeList: ['/components/RemoveDuplicateMediaButton#RemoveDuplicateMediaButton'],
+      beforeList: [
+        '/components/MediaOrganizer#MediaOrganizer',
+        '/components/RemoveDuplicateMediaButton#RemoveDuplicateMediaButton',
+      ],
     },
   },
   access: {
