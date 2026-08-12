@@ -23,7 +23,10 @@ type CategoryResponse = {
 }
 
 type ImageCategoryResponse = {
-  docs: { image: number | string }[]
+  docs: {
+    category: number | string | { id: number | string; name?: string | null }
+    image: number | string | { id: number | string }
+  }[]
 }
 
 type FilterMode = 'include' | 'exclude'
@@ -32,7 +35,7 @@ type ViewMode = 'gallery' | 'list'
 const PAGE_SIZE = 48
 
 export const MediaOrganizer = () => {
-  const [category, setCategory] = useState('')
+  const [assignedCategories, setAssignedCategories] = useState<Record<string, string[]>>({})
   const [categoryOptions, setCategoryOptions] = useState<CategoryResponse['docs']>([])
   const [error, setError] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
@@ -42,6 +45,7 @@ export const MediaOrganizer = () => {
   const [media, setMedia] = useState<MediaResponse>()
   const [page, setPage] = useState(1)
   const [selectedIDs, setSelectedIDs] = useState<Set<string>>(() => new Set())
+  const [selectedCategoryIDs, setSelectedCategoryIDs] = useState<Set<string>>(() => new Set())
   const [view, setView] = useState<ViewMode>('gallery')
 
   const loadMedia = useCallback(async () => {
@@ -65,7 +69,7 @@ export const MediaOrganizer = () => {
         if (!assignmentsResponse.ok) throw new Error('Unable to load category assignments.')
 
         const assignments = (await assignmentsResponse.json()) as ImageCategoryResponse
-        const imageIDs = assignments.docs.map((assignment) => String(assignment.image))
+        const imageIDs = assignments.docs.map((assignment) => String(typeof assignment.image === 'object' ? assignment.image.id : assignment.image))
 
         if (!imageIDs.length && filterMode === 'include') {
           setMedia({ docs: [], hasNextPage: false, hasPrevPage: false, page: 1, totalDocs: 0 })
@@ -84,7 +88,37 @@ export const MediaOrganizer = () => {
 
       if (!response.ok) throw new Error('Unable to load images.')
 
-      setMedia((await response.json()) as MediaResponse)
+      const result = (await response.json()) as MediaResponse
+      const imageIDs = result.docs.map((item) => String(item.id))
+
+      if (imageIDs.length) {
+        const assignmentsResponse = await fetch(
+          `/api/image-categories?depth=1&limit=1000&where[image][in]=${encodeURIComponent(imageIDs.join(','))}`,
+          { credentials: 'same-origin' },
+        )
+
+        if (!assignmentsResponse.ok) throw new Error('Unable to load image categories.')
+
+        const assignments = (await assignmentsResponse.json()) as ImageCategoryResponse
+        const categoryMap: Record<string, string[]> = {}
+
+        assignments.docs.forEach((assignment) => {
+          const imageID = typeof assignment.image === 'object' ? assignment.image.id : assignment.image
+          const category = assignment.category
+          const categoryName = typeof category === 'object' ? category.name : undefined
+
+          if (!categoryName) return
+
+          const key = String(imageID)
+          categoryMap[key] = [...(categoryMap[key] || []), categoryName]
+        })
+
+        setAssignedCategories(categoryMap)
+      } else {
+        setAssignedCategories({})
+      }
+
+      setMedia(result)
       setSelectedIDs(new Set())
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to load images.')
@@ -139,6 +173,16 @@ export const MediaOrganizer = () => {
     })
   }
 
+  const toggleCategory = (id: CategoryResponse['docs'][number]['id']) => {
+    const key = String(id)
+    setSelectedCategoryIDs((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   const runBulkAction = async (action: 'category' | 'delete') => {
     if (!selectedCount) return
 
@@ -150,8 +194,8 @@ export const MediaOrganizer = () => {
       if (!confirmed) return
     }
 
-    if (action === 'category' && !category.trim()) {
-      setError('Choose a category before applying it.')
+    if (action === 'category' && !selectedCategoryIDs.size) {
+      setError('Choose at least one category before syncing.')
       return
     }
 
@@ -162,7 +206,7 @@ export const MediaOrganizer = () => {
       const response = await fetch('/api/maintenance/bulk-media', {
         body: JSON.stringify({
           action,
-          category: action === 'category' ? category.trim() : undefined,
+          categories: action === 'category' ? [...selectedCategoryIDs] : undefined,
           ids: [...selectedIDs],
         }),
         credentials: 'same-origin',
@@ -179,7 +223,7 @@ export const MediaOrganizer = () => {
         throw new Error(message || 'Some selected images could not be updated. Please try again.')
       }
 
-      setCategory('')
+      setSelectedCategoryIDs(new Set())
       await loadMedia()
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'Unable to update the selected images.')
@@ -298,19 +342,21 @@ export const MediaOrganizer = () => {
           }}
         >
           <strong>{selectedLabel}</strong>
-          <select
-            aria-label="Category for selected images"
-            onChange={(event) => setCategory(event.target.value)}
-            value={category}
-          >
-            <option value="">Choose a category</option>
+          <fieldset style={{ border: 0, display: 'flex', flexWrap: 'wrap', gap: '0.45rem', margin: 0, padding: 0 }}>
+            <legend style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>Add categories</legend>
             {categories.map((existingCategory) => (
-              <option key={existingCategory.id} value={existingCategory.id}>
+              <label key={existingCategory.id} style={{ alignItems: 'center', display: 'flex', gap: '0.25rem' }}>
+                <input
+                  checked={selectedCategoryIDs.has(String(existingCategory.id))}
+                  disabled={isWorking}
+                  onChange={() => toggleCategory(existingCategory.id)}
+                  type="checkbox"
+                />
                 {existingCategory.name}
-              </option>
+              </label>
             ))}
-          </select>
-          <Button buttonStyle="primary" disabled={isWorking || !category} onClick={() => void runBulkAction('category')} size="small" type="button">
+          </fieldset>
+          <Button buttonStyle="primary" disabled={isWorking || !selectedCategoryIDs.size} onClick={() => void runBulkAction('category')} size="small" type="button">
             {isWorking ? 'Syncing…' : 'Sync selected'}
           </Button>
           <Button buttonStyle="secondary" disabled={isWorking} onClick={() => void runBulkAction('delete')} size="small" type="button">
@@ -320,7 +366,7 @@ export const MediaOrganizer = () => {
             Clear selection
           </Button>
           <span style={{ color: 'var(--theme-elevation-600)', fontSize: '0.85rem' }}>
-            Category changes are saved only when you sync.
+            Select one or more categories, then sync. Existing categories stay assigned.
           </span>
         </div>
       )}
@@ -376,7 +422,7 @@ export const MediaOrganizer = () => {
                         {item.filename || 'Untitled image'}
                       </span>
                       <span style={{ display: 'block', fontSize: '0.74rem', opacity: 0.7 }}>
-                        Categories are managed through the selection tools above
+                        {(assignedCategories[String(item.id)] || []).join(' · ') || 'Uncategorized'}
                       </span>
                     </label>
                   </article>
@@ -418,7 +464,7 @@ export const MediaOrganizer = () => {
                       <div style={{ background: 'var(--theme-elevation-100)', height: '3rem', width: '3rem' }} />
                     )}
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename || 'Untitled image'}</span>
-                    <span>Use selection tools to manage categories</span>
+                    <span>{(assignedCategories[String(item.id)] || []).join(' · ') || 'Uncategorized'}</span>
                   </div>
                 )
               })}
