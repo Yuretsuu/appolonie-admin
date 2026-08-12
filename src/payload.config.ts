@@ -66,12 +66,16 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       allowExitOnIdle: true,
+      application_name: 'apollonie-admin',
       connectionString: process.env.DATABASE_URL || '',
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 5_000,
+      keepAlive: true,
       // Payload may need one connection for initialization and another for a query.
       // Keep this well below pg's default of 10 for serverless Vercel instances.
       max: 2,
+      // Recycle connections periodically in case a serverless instance remains warm.
+      maxUses: 500,
     },
   }),
   sharp,
