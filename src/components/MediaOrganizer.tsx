@@ -138,20 +138,24 @@ export const MediaOrganizer = () => {
     setError('')
 
     try {
-      const selected = [...selectedIDs]
-      const responses = await Promise.all(
-        selected.map((id) =>
-          fetch(`/api/media/${id}`, {
-            body: action === 'category' ? JSON.stringify({ category: category.trim() }) : undefined,
-            credentials: 'same-origin',
-            headers: action === 'category' ? { 'Content-Type': 'application/json' } : undefined,
-            method: action === 'category' ? 'PATCH' : 'DELETE',
-          }),
-        ),
-      )
+      const response = await fetch('/api/media/bulk', {
+        body: JSON.stringify({
+          action,
+          category: action === 'category' ? category.trim() : undefined,
+          ids: [...selectedIDs],
+        }),
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
 
-      if (responses.some((response) => !response.ok)) {
-        throw new Error('Some selected images could not be updated. Please try again.')
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as
+          | { errors?: { message?: string }[]; message?: string }
+          | null
+        const message = result?.errors?.[0]?.message || result?.message
+
+        throw new Error(message || 'Some selected images could not be updated. Please try again.')
       }
 
       setCategory('')

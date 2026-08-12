@@ -11,6 +11,7 @@ import { Users } from './collections/Users'
 import { Categories } from './collections/Categories'
 import { Media } from './collections/Media'
 import { Galleries } from './collections/Galleries'
+import { bulkMedia } from './endpoints/bulkMedia'
 import { removeDuplicateMedia } from './endpoints/removeDuplicateMedia'
 
 const filename = fileURLToPath(import.meta.url)
@@ -56,7 +57,7 @@ export default buildConfig({
     defaultFromAddress: emailFromAddress,
     defaultFromName: emailFromName,
   }),
-  endpoints: [removeDuplicateMedia],
+  endpoints: [bulkMedia, removeDuplicateMedia],
   secret: process.env.PAYLOAD_SECRET || '',
   serverURL: process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000',
   typescript: {
@@ -64,7 +65,11 @@ export default buildConfig({
   },
   db: postgresAdapter({
     pool: {
+      allowExitOnIdle: true,
       connectionString: process.env.DATABASE_URL || '',
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 5_000,
+      max: 1,
     },
   }),
   sharp,

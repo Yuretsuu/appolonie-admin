@@ -50,7 +50,7 @@ export const Media: CollectionConfig = {
       async ({ context, data, operation, req }) => {
         const category = typeof data?.category === 'string' ? data.category.trim() : ''
 
-        if (category && !context.allowCategoryRename) {
+        if (category && !context.allowCategoryRename && !context.bulkCategoryValidated) {
           const existingCategory = await req.payload.find({
             collection: 'categories',
             depth: 0,
