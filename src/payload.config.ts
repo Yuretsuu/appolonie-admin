@@ -1,4 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { resendAdapter } from '@payloadcms/email-resend'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
 import path from 'path'
@@ -19,6 +20,10 @@ const storageEndpoint = process.env.SUPABASE_S3_ENDPOINT || process.env.S3_ENDPO
 const storageRegion = process.env.SUPABASE_S3_REGION || process.env.S3_REGION
 const storageAccessKey = process.env.SUPABASE_S3_ACCESS_KEY_ID || process.env.ACCESSKEY_ID
 const storageSecretKey = process.env.SUPABASE_S3_SECRET_ACCESS_KEY || process.env.SECRETACESS_KEY
+const emailFrom = process.env.EMAIL_FROM || 'Apollonie Admin <admin@apollonie.ca>'
+const emailFromMatch = emailFrom.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/)
+const emailFromName = emailFromMatch?.[1] || 'Apollonie Admin'
+const emailFromAddress = emailFromMatch?.[2] || emailFrom
 
 export default buildConfig({
   admin: {
@@ -46,8 +51,14 @@ export default buildConfig({
   ],
   collections: [Users, Categories, Media, Galleries],
   editor: lexicalEditor(),
+  email: resendAdapter({
+    apiKey: process.env.RESEND_API_KEY || '',
+    defaultFromAddress: emailFromAddress,
+    defaultFromName: emailFromName,
+  }),
   endpoints: [removeDuplicateMedia],
   secret: process.env.PAYLOAD_SECRET || '',
+  serverURL: process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
