@@ -290,7 +290,7 @@ export const MediaOrganizer = () => {
             ))}
           </select>
           <Button buttonStyle="primary" disabled={isWorking || !category} onClick={() => void runBulkAction('category')} size="small" type="button">
-            Add to category
+            {isWorking ? 'Syncing…' : 'Sync selected'}
           </Button>
           <Button buttonStyle="secondary" disabled={isWorking} onClick={() => void runBulkAction('delete')} size="small" type="button">
             Delete selected
@@ -298,6 +298,9 @@ export const MediaOrganizer = () => {
           <Button buttonStyle="secondary" disabled={isWorking} onClick={() => setSelectedIDs(new Set())} size="small" type="button">
             Clear selection
           </Button>
+          <span style={{ color: 'var(--theme-elevation-600)', fontSize: '0.85rem' }}>
+            Category changes are saved only when you sync.
+          </span>
         </div>
       )}
 
