@@ -138,7 +138,7 @@ export const MediaOrganizer = () => {
     setError('')
 
     try {
-      const response = await fetch('/api/media/bulk', {
+      const response = await fetch('/api/maintenance/bulk-media', {
         body: JSON.stringify({
           action,
           category: action === 'category' ? category.trim() : undefined,

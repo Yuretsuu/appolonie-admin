@@ -9,7 +9,7 @@ type BulkMediaRequest = {
 const MAX_BULK_ITEMS = 100
 
 export const bulkMedia: Endpoint = {
-  path: '/media/bulk',
+  path: '/maintenance/bulk-media',
   method: 'post',
   handler: async (req) => {
     if (!req.user) throw new APIError('Unauthorized', 401)
