@@ -4,7 +4,6 @@ import { Button } from '@payloadcms/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 type MediaDocument = {
-  category?: null | string
   filename?: null | string
   id: number | string
   mimeType?: null | string
@@ -21,6 +20,10 @@ type MediaResponse = {
 
 type CategoryResponse = {
   docs: { id: number | string; name: string }[]
+}
+
+type ImageCategoryResponse = {
+  docs: { image: number | string }[]
 }
 
 type FilterMode = 'include' | 'exclude'
@@ -54,7 +57,25 @@ export const MediaOrganizer = () => {
       })
 
       if (filterCategory) {
-        search.set(`where[category][${filterMode === 'include' ? 'equals' : 'not_equals'}]`, filterCategory)
+        const assignmentsResponse = await fetch(
+          `/api/image-categories?depth=0&limit=1000&where[category][equals]=${encodeURIComponent(filterCategory)}`,
+          { credentials: 'same-origin' },
+        )
+
+        if (!assignmentsResponse.ok) throw new Error('Unable to load category assignments.')
+
+        const assignments = (await assignmentsResponse.json()) as ImageCategoryResponse
+        const imageIDs = assignments.docs.map((assignment) => String(assignment.image))
+
+        if (!imageIDs.length && filterMode === 'include') {
+          setMedia({ docs: [], hasNextPage: false, hasPrevPage: false, page: 1, totalDocs: 0 })
+          setSelectedIDs(new Set())
+          return
+        }
+
+        if (imageIDs.length) {
+          search.set(`where[id][${filterMode === 'include' ? 'in' : 'not_in'}]`, imageIDs.join(','))
+        }
       }
 
       const response = await fetch(`/api/media?${search.toString()}`, {
@@ -226,7 +247,7 @@ export const MediaOrganizer = () => {
           >
             <option value="">All photos</option>
             {categories.map((existingCategory) => (
-              <option key={existingCategory.id} value={existingCategory.name}>
+              <option key={existingCategory.id} value={existingCategory.id}>
                 {existingCategory.name}
               </option>
             ))}
@@ -284,7 +305,7 @@ export const MediaOrganizer = () => {
           >
             <option value="">Choose a category</option>
             {categories.map((existingCategory) => (
-              <option key={existingCategory.id} value={existingCategory.name}>
+              <option key={existingCategory.id} value={existingCategory.id}>
                 {existingCategory.name}
               </option>
             ))}
@@ -355,7 +376,7 @@ export const MediaOrganizer = () => {
                         {item.filename || 'Untitled image'}
                       </span>
                       <span style={{ display: 'block', fontSize: '0.74rem', opacity: 0.7 }}>
-                        {item.category || 'Uncategorized'}
+                        Categories are managed through the selection tools above
                       </span>
                     </label>
                   </article>
@@ -397,7 +418,7 @@ export const MediaOrganizer = () => {
                       <div style={{ background: 'var(--theme-elevation-100)', height: '3rem', width: '3rem' }} />
                     )}
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename || 'Untitled image'}</span>
-                    <span>{item.category || 'Uncategorized'}</span>
+                    <span>Use selection tools to manage categories</span>
                   </div>
                 )
               })}

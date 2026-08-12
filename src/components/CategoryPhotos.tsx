@@ -22,6 +22,10 @@ type MediaResponse = {
   totalDocs: number
 }
 
+type ImageCategoryResponse = {
+  docs: { image: number | string }[]
+}
+
 const PAGE_SIZE = 36
 
 export const CategoryPhotos: UIFieldClientComponent = () => {
@@ -46,15 +50,36 @@ export const CategoryPhotos: UIFieldClientComponent = () => {
       if (!categoryResponse.ok) throw new Error('Unable to load this category.')
 
       const category = (await categoryResponse.json()) as CategoryDocument
-      const search = new URLSearchParams({
+      const assignmentsSearch = new URLSearchParams({
+        depth: '0',
+        limit: '1000',
+      })
+      assignmentsSearch.set('where[category][equals]', String(id))
+
+      const assignmentsResponse = await fetch(`/api/image-categories?${assignmentsSearch.toString()}`, {
+        credentials: 'same-origin',
+      })
+
+      if (!assignmentsResponse.ok) throw new Error('Unable to load category assignments.')
+
+      const assignments = (await assignmentsResponse.json()) as ImageCategoryResponse
+      const imageIDs = assignments.docs.map((assignment) => String(assignment.image))
+
+      if (!imageIDs.length) {
+        setCategoryName(category.name)
+        setMedia({ docs: [], hasNextPage: false, hasPrevPage: false, page: 1, totalDocs: 0 })
+        return
+      }
+
+      const mediaSearch = new URLSearchParams({
         depth: '0',
         limit: String(PAGE_SIZE),
         page: String(page),
         sort: '-createdAt',
       })
-      search.set('where[category][equals]', category.name)
+      mediaSearch.set('where[id][in]', imageIDs.join(','))
 
-      const mediaResponse = await fetch(`/api/media?${search.toString()}`, {
+      const mediaResponse = await fetch(`/api/media?${mediaSearch.toString()}`, {
         credentials: 'same-origin',
       })
 
@@ -89,7 +114,7 @@ export const CategoryPhotos: UIFieldClientComponent = () => {
           <h3 style={{ marginBottom: '0.25rem' }}>Photos in this category</h3>
           <p style={{ margin: 0 }}>{media?.totalDocs ?? 0} assigned to {categoryName || 'this category'}</p>
         </div>
-        <a href={`/admin/collections/media?category=${encodeURIComponent(categoryName)}`}>Open Media organizer</a>
+        <a href={`/admin/collections/media?category=${encodeURIComponent(String(id))}`}>Open Media organizer</a>
       </div>
 
       {error && <p role="alert">{error}</p>}

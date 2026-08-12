@@ -23,13 +23,12 @@ export const Media: CollectionConfig = {
       type: 'text',
     },
     {
-      name: 'category',
-      type: 'text',
+      name: 'categoryAssignments',
+      type: 'join',
+      collection: 'image-categories',
+      on: 'image',
       admin: {
-        components: {
-          Field: '/components/MediaCategoryField#MediaCategoryField',
-        },
-        description: 'Create categories in Categories before assigning them to photos.',
+        description: 'Categories assigned to this image.',
       },
     },
     {
@@ -47,43 +46,8 @@ export const Media: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ context, data, operation, req }) => {
-        const category = typeof data?.category === 'string' ? data.category.trim() : ''
-
-        if (category && !context.allowCategoryRename && !context.bulkCategoryValidated) {
-          const existingCategory = await req.payload.find({
-            collection: 'categories',
-            depth: 0,
-            limit: 1,
-            overrideAccess: false,
-            req,
-            where: {
-              name: {
-                equals: category,
-              },
-            },
-          })
-
-          if (!existingCategory.totalDocs) {
-            throw new ValidationError({
-              collection: 'media',
-              errors: [
-                {
-                  message: 'Create this category in Categories before assigning photos to it.',
-                  path: 'category',
-                },
-              ],
-              req,
-            })
-          }
-        }
-
-        const normalizedData = {
-          ...data,
-          ...(typeof data?.category === 'string' ? { category } : {}),
-        }
-
-        if (operation !== 'create' || !req.file?.data) return normalizedData
+      async ({ data, operation, req }) => {
+        if (operation !== 'create' || !req.file?.data) return data
 
         const checksum = createHash('sha256').update(req.file.data).digest('hex')
         const existing = await req.payload.find({
@@ -112,7 +76,7 @@ export const Media: CollectionConfig = {
         }
 
         return {
-          ...normalizedData,
+          ...data,
           checksum,
         }
       },

@@ -71,17 +71,26 @@ export interface Config {
     categories: Category;
     media: Media;
     galleries: Gallery;
+    'image-categories': ImageCategory;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    categories: {
+      imageAssignments: 'image-categories';
+    };
+    media: {
+      categoryAssignments: 'image-categories';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     galleries: GalleriesSelect<false> | GalleriesSelect<true>;
+    'image-categories': ImageCategoriesSelect<false> | ImageCategoriesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -151,6 +160,25 @@ export interface User {
 export interface Category {
   id: number;
   name: string;
+  /**
+   * Images assigned to this category.
+   */
+  imageAssignments?: {
+    docs?: (number | ImageCategory)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "image-categories".
+ */
+export interface ImageCategory {
+  id: number;
+  image: number | Media;
+  category: number | Category;
   updatedAt: string;
   createdAt: string;
 }
@@ -162,9 +190,13 @@ export interface Media {
   id: number;
   alt?: string | null;
   /**
-   * Create categories in Categories before assigning them to photos.
+   * Categories assigned to this image.
    */
-  category?: string | null;
+  categoryAssignments?: {
+    docs?: (number | ImageCategory)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   checksum?: string | null;
   prefix?: string | null;
   updatedAt: string;
@@ -232,6 +264,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'galleries';
         value: number | Gallery;
+      } | null)
+    | ({
+        relationTo: 'image-categories';
+        value: number | ImageCategory;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -303,6 +339,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface CategoriesSelect<T extends boolean = true> {
   name?: T;
+  imageAssignments?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -312,7 +349,7 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
-  category?: T;
+  categoryAssignments?: T;
   checksum?: T;
   prefix?: T;
   updatedAt?: T;
@@ -334,6 +371,16 @@ export interface MediaSelect<T extends boolean = true> {
 export interface GalleriesSelect<T extends boolean = true> {
   title?: T;
   photos?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "image-categories_select".
+ */
+export interface ImageCategoriesSelect<T extends boolean = true> {
+  image?: T;
+  category?: T;
   updatedAt?: T;
   createdAt?: T;
 }

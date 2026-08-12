@@ -2,7 +2,7 @@ import { APIError, type Endpoint } from 'payload'
 
 type BulkMediaRequest = {
   action?: 'category' | 'delete'
-  category?: string
+  category?: number | string
   ids?: Array<number | string>
 }
 
@@ -17,7 +17,7 @@ export const bulkMedia: Endpoint = {
     const body = (await req.json?.()) as BulkMediaRequest
     const action = body?.action
     const ids = Array.isArray(body?.ids)
-      ? [...new Set(body.ids.filter((id) => typeof id === 'number' || typeof id === 'string'))]
+      ? [...new Set(body.ids.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))]
       : []
 
     if (action !== 'category' && action !== 'delete') {
@@ -52,48 +52,77 @@ export const bulkMedia: Endpoint = {
       )
     }
 
-    const category = body.category?.trim()
+    const category = Number(body.category)
 
-    if (!category) throw new APIError('Choose a category before applying it.', 400)
+    if (!Number.isSafeInteger(category) || category <= 0) {
+      throw new APIError('Choose a category before applying it.', 400)
+    }
 
-    const existingCategory = await req.payload.find({
+    const existingCategory = await req.payload.findByID({
       collection: 'categories',
       depth: 0,
-      limit: 1,
+      id: category,
+      overrideAccess: false,
+      req,
+      user: req.user,
+    })
+
+    const existingAssignments = await req.payload.find({
+      collection: 'image-categories',
+      depth: 0,
+      limit: MAX_BULK_ITEMS,
       overrideAccess: false,
       req,
       user: req.user,
       where: {
-        name: {
-          equals: category,
-        },
+        and: [
+          {
+            category: {
+              equals: existingCategory.id,
+            },
+          },
+          {
+            image: {
+              in: ids,
+            },
+          },
+        ],
       },
     })
 
-    if (!existingCategory.totalDocs) {
-      throw new APIError('Create this category in Categories before assigning photos to it.', 400)
+    const assignedImageIDs = new Set(existingAssignments.docs.map((assignment) => String(assignment.image)))
+    const errors: { id: number | string; message: string }[] = []
+    let processed = 0
+
+    for (const image of ids) {
+      if (assignedImageIDs.has(String(image))) continue
+
+      try {
+        await req.payload.create({
+          collection: 'image-categories',
+          data: {
+            category: existingCategory.id,
+            image,
+          },
+          overrideAccess: false,
+          req,
+          user: req.user,
+        })
+        processed += 1
+      } catch (error) {
+        errors.push({
+          id: image,
+          message: error instanceof Error ? error.message : 'Unable to assign this image.',
+        })
+      }
     }
-
-    const result = await req.payload.update({
-      collection: 'media',
-      context: {
-        bulkCategoryValidated: true,
-      },
-      data: {
-        category,
-      },
-      overrideAccess: false,
-      req,
-      user: req.user,
-      where,
-    })
 
     return Response.json(
       {
-        errors: result.errors,
-        processed: result.docs.length,
+        errors,
+        processed,
       },
-      { status: result.errors.length ? 422 : 200 },
+      { status: errors.length ? 422 : 200 },
     )
   },
 }
