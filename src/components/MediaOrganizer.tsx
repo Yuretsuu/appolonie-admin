@@ -20,17 +20,20 @@ type MediaResponse = {
 }
 
 type CategoryResponse = {
-  docs: { name: string }[]
+  docs: { id: number | string; name: string }[]
 }
 
+type FilterMode = 'include' | 'exclude'
 type ViewMode = 'gallery' | 'list'
 
 const PAGE_SIZE = 48
 
 export const MediaOrganizer = () => {
   const [category, setCategory] = useState('')
-  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
+  const [categoryOptions, setCategoryOptions] = useState<CategoryResponse['docs']>([])
   const [error, setError] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterMode, setFilterMode] = useState<FilterMode>('include')
   const [isLoading, setIsLoading] = useState(true)
   const [isWorking, setIsWorking] = useState(false)
   const [media, setMedia] = useState<MediaResponse>()
@@ -43,7 +46,18 @@ export const MediaOrganizer = () => {
     setError('')
 
     try {
-      const response = await fetch(`/api/media?depth=0&limit=${PAGE_SIZE}&page=${page}&sort=-createdAt`, {
+      const search = new URLSearchParams({
+        depth: '0',
+        limit: String(PAGE_SIZE),
+        page: String(page),
+        sort: '-createdAt',
+      })
+
+      if (filterCategory) {
+        search.set(`where[category][${filterMode === 'include' ? 'equals' : 'not_equals'}]`, filterCategory)
+      }
+
+      const response = await fetch(`/api/media?${search.toString()}`, {
         credentials: 'same-origin',
       })
 
@@ -56,7 +70,7 @@ export const MediaOrganizer = () => {
     } finally {
       setIsLoading(false)
     }
-  }, [page])
+  }, [filterCategory, filterMode, page])
 
   useEffect(() => {
     void loadMedia()
@@ -72,7 +86,7 @@ export const MediaOrganizer = () => {
         if (!response.ok) return
 
         const result = (await response.json()) as CategoryResponse
-        setCategoryOptions(result.docs.map((item) => item.name))
+        setCategoryOptions(result.docs)
       } catch {
         // Category suggestions are optional; assigning a category still works.
       }
@@ -81,9 +95,18 @@ export const MediaOrganizer = () => {
     void loadCategories()
   }, [])
 
+  useEffect(() => {
+    const requestedCategory = new URLSearchParams(window.location.search).get('category')
+
+    if (requestedCategory) setFilterCategory(requestedCategory)
+  }, [])
+
   const selectedCount = selectedIDs.size
   const selectedLabel = `${selectedCount} image${selectedCount === 1 ? '' : 's'} selected`
-  const categories = useMemo(() => [...categoryOptions].sort((a, b) => a.localeCompare(b)), [categoryOptions])
+  const categories = useMemo(
+    () => [...categoryOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [categoryOptions],
+  )
 
   const toggleSelection = (id: MediaDocument['id']) => {
     const key = String(id)
@@ -107,7 +130,7 @@ export const MediaOrganizer = () => {
     }
 
     if (action === 'category' && !category.trim()) {
-      setError('Enter a category name before applying it.')
+      setError('Choose a category before applying it.')
       return
     }
 
@@ -129,11 +152,6 @@ export const MediaOrganizer = () => {
 
       if (responses.some((response) => !response.ok)) {
         throw new Error('Some selected images could not be updated. Please try again.')
-      }
-
-      if (action === 'category') {
-        const assignedCategory = category.trim()
-        setCategoryOptions((current) => Array.from(new Set([...current, assignedCategory])))
       }
 
       setCategory('')
@@ -180,6 +198,67 @@ export const MediaOrganizer = () => {
         </div>
       </div>
 
+      <div
+        style={{
+          alignItems: 'end',
+          background: 'var(--theme-elevation-50)',
+          border: '1px solid var(--theme-elevation-150)',
+          borderRadius: 'var(--border-radius-s)',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: 'var(--base)',
+          padding: '0.75rem',
+        }}
+      >
+        <label style={{ display: 'grid', gap: '0.3rem' }}>
+          <span>Category filter</span>
+          <select
+            onChange={(event) => {
+              setFilterCategory(event.target.value)
+              setPage(1)
+            }}
+            value={filterCategory}
+          >
+            <option value="">All photos</option>
+            {categories.map((existingCategory) => (
+              <option key={existingCategory.id} value={existingCategory.name}>
+                {existingCategory.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: '0.3rem' }}>
+          <span>Show photos that</span>
+          <select
+            disabled={!filterCategory}
+            onChange={(event) => {
+              setFilterMode(event.target.value as FilterMode)
+              setPage(1)
+            }}
+            value={filterMode}
+          >
+            <option value="include">Include this category</option>
+            <option value="exclude">Exclude this category</option>
+          </select>
+        </label>
+        {filterCategory && (
+          <Button
+            buttonStyle="secondary"
+            onClick={() => {
+              setFilterCategory('')
+              setFilterMode('include')
+              setPage(1)
+            }}
+            size="small"
+            type="button"
+          >
+            Clear filter
+          </Button>
+        )}
+        <a href="/admin/collections/categories">Manage categories</a>
+      </div>
+
       {selectedCount > 0 && (
         <div
           style={{
@@ -194,20 +273,19 @@ export const MediaOrganizer = () => {
           }}
         >
           <strong>{selectedLabel}</strong>
-          <input
+          <select
             aria-label="Category for selected images"
-            list="media-organizer-categories"
             onChange={(event) => setCategory(event.target.value)}
-            placeholder="Category name"
             value={category}
-          />
-          <datalist id="media-organizer-categories">
-            {categories.map((existingCategory: string) => (
-              <option key={existingCategory} value={existingCategory} />
+          >
+            <option value="">Choose a category</option>
+            {categories.map((existingCategory) => (
+              <option key={existingCategory.id} value={existingCategory.name}>
+                {existingCategory.name}
+              </option>
             ))}
-          </datalist>
-          <a href="/admin/collections/categories">Manage categories</a>
-          <Button buttonStyle="primary" disabled={isWorking} onClick={() => void runBulkAction('category')} size="small" type="button">
+          </select>
+          <Button buttonStyle="primary" disabled={isWorking || !category} onClick={() => void runBulkAction('category')} size="small" type="button">
             Add to category
           </Button>
           <Button buttonStyle="secondary" disabled={isWorking} onClick={() => void runBulkAction('delete')} size="small" type="button">

@@ -26,7 +26,10 @@ export const Media: CollectionConfig = {
       name: 'category',
       type: 'text',
       admin: {
-        description: 'Optional gallery category like Custom, Costume, or Bridal.',
+        components: {
+          Field: '/components/MediaCategoryField#MediaCategoryField',
+        },
+        description: 'Create categories in Categories before assigning them to photos.',
       },
     },
     {
@@ -44,10 +47,10 @@ export const Media: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ data, operation, req }) => {
+      async ({ context, data, operation, req }) => {
         const category = typeof data?.category === 'string' ? data.category.trim() : ''
 
-        if (category) {
+        if (category && !context.allowCategoryRename) {
           const existingCategory = await req.payload.find({
             collection: 'categories',
             depth: 0,
@@ -62,10 +65,14 @@ export const Media: CollectionConfig = {
           })
 
           if (!existingCategory.totalDocs) {
-            await req.payload.create({
-              collection: 'categories',
-              data: { name: category },
-              overrideAccess: false,
+            throw new ValidationError({
+              collection: 'media',
+              errors: [
+                {
+                  message: 'Create this category in Categories before assigning photos to it.',
+                  path: 'category',
+                },
+              ],
               req,
             })
           }

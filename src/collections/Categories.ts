@@ -26,6 +26,15 @@ export const Categories: CollectionConfig = {
         beforeValidate: [({ value }) => (typeof value === 'string' ? value.trim() : value)],
       },
     },
+    {
+      name: 'photosPreview',
+      type: 'ui',
+      admin: {
+        components: {
+          Field: '/components/CategoryPhotos#CategoryPhotos',
+        },
+      },
+    },
   ],
   hooks: {
     beforeChange: [
@@ -37,6 +46,7 @@ export const Categories: CollectionConfig = {
 
         await req.payload.update({
           collection: 'media',
+          context: { allowCategoryRename: true },
           data: { category: newName },
           overrideAccess: false,
           req,

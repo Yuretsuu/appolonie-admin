@@ -162,7 +162,7 @@ export interface Media {
   id: number;
   alt?: string | null;
   /**
-   * Optional gallery category like Custom, Costume, or Bridal.
+   * Create categories in Categories before assigning them to photos.
    */
   category?: string | null;
   checksum?: string | null;
